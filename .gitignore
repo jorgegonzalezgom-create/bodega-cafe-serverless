@@ -1,0 +1,9 @@
+# Certificados y datos privados del ESP32
+esp32/**/secrets.h
+*.pem
+*.pem.crt
+*.pem.key
+*.key
+*.key.txt
+# Llaves del lab
+labsuser.pem

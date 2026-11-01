@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bodega de café · IoT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== Colores del tablero (modo oscuro) ===== */
+  :root {
+    --fondo: #0f1115; --tarjeta: #171a21; --borde: #262b36;
+    --texto: #e6e8ee; --suave: #8b93a7;
+    --ok: #2fbf71; --alerta: #ef4b5a; --frio: #4b8cf0; --cafe: #c08a5b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fondo); color: var(--texto);
+         font-family: Inter, system-ui, sans-serif; }
+  .contenedor { max-width: 1200px; margin: 0 auto; padding: 24px 16px 40px; }
+
+  /* Encabezado */
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+  .marca { display: flex; gap: 12px; align-items: center; }
+  .logo { width: 44px; height: 44px; border-radius: 12px; background: #2a1e15;
+          display: grid; place-items: center; font-size: 22px; }
+  h1 { font-size: 20px; margin: 0; }
+  .sub { color: var(--suave); font-size: 13px; margin-top: 2px; }
+  .controles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .vivo { font-size: 12px; color: var(--suave); display: flex; align-items: center; gap: 6px; }
+  .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+  select, button { font: inherit; font-size: 13px; color: var(--texto); background: var(--tarjeta);
+                   border: 1px solid var(--borde); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  button:hover, select:hover { border-color: #3a4152; }
+
+  /* Rejilla de tarjetas */
+  .rejilla { display: grid; gap: 16px; margin-top: 20px;
+             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .tarjeta { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 14px; padding: 18px; }
+  .etiqueta { color: var(--suave); font-size: 13px; }
+  .valor { font-size: 40px; font-weight: 700; margin-top: 6px; }
+  .valor small { font-size: 18px; color: var(--suave); font-weight: 500; }
+  .rango { font-size: 12px; color: var(--suave); margin-top: 6px; }
+  .barra { height: 6px; border-radius: 4px; background: #232836; margin-top: 12px; position: relative; overflow: hidden; }
+  .barra .zona { position: absolute; top: 0; bottom: 0; background: rgba(47,191,113,.35); }
+  .barra .marcador { position: absolute; top: -3px; width: 3px; height: 12px; background: var(--texto); border-radius: 2px; }
+
+  /* Estado de la bodega */
+  .estado { border-left: 4px solid var(--ok); }
+  .estado.alerta { border-left-color: var(--alerta); }
+  .estado .valor { font-size: 30px; }
+  .estado.alerta .valor { color: var(--alerta); }
+  .estado:not(.alerta) .valor { color: var(--ok); }
+
+  /* Actuador */
+  .led-fila { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+  .foco { width: 46px; height: 46px; border-radius: 50%; background: #2a2f3b; transition: .3s; }
+  .foco.on { background: #ffd34d; box-shadow: 0 0 22px #ffd34d88; }
+  .interruptor { width: 64px; height: 34px; border-radius: 20px; background: #2a2f3b; position: relative;
+                 border: none; padding: 0; transition: .3s; }
+  .interruptor::after { content: ""; position: absolute; top: 4px; left: 4px; width: 26px; height: 26px;
+                        border-radius: 50%; background: #fff; transition: .3s; }
+  .interruptor.on { background: var(--ok); }
+  .interruptor.on::after { left: 34px; }
+
+  /* Graficas */
+  .graficas { display: grid; gap: 16px; margin-top: 16px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+  .graficas canvas { width: 100% !important; height: 260px !important; }
+  h2 { font-size: 15px; margin: 0 0 10px; font-weight: 600; }
+  .leyenda { font-size: 12px; color: var(--suave); margin-bottom: 8px; }
+  .leyenda span { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
+
+  /* Tabla de ultimas lecturas */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--borde); }
+  th { color: var(--suave); font-weight: 500; }
+  .pill { padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .pill.OK { background: rgba(47,191,113,.15); color: var(--ok); }
+  .pill.ALERTA { background: rgba(239,75,90,.15); color: var(--alerta); }
+  .error { color: var(--alerta); font-size: 13px; margin-top: 12px; }
+  footer { color: var(--suave); font-size: 12px; margin-top: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="contenedor">
+
+  <header>
+    <div class="marca">
+      <div class="logo">☕</div>
+      <div>
+        <h1>Bodega de café pergamino</h1>
+        <div class="sub">Monitoreo IoT serverless · ESP32 + DHT11 · AWS IoT Core</div>
+      </div>
+    </div>
+    <div class="controles">
+      <span class="vivo"><span class="punto" id="punto"></span><span id="actualizado">Conectando…</span></span>
+      <select id="horas" title="Rango de tiempo">
+        <option value="1">Última hora</option>
+        <option value="6">Últimas 6 horas</option>
+        <option value="24">Últimas 24 horas</option>
+      </select>
+      <button id="csv">⬇ Descargar CSV</button>
+    </div>
+  </header>
+
+  <!-- Tarjetas: estado, temperatura, humedad, actuador -->
+  <section class="rejilla">
+    <div class="tarjeta estado" id="tEstado">
+      <div class="etiqueta">Estado de la bodega</div>
+      <div class="valor" id="estado">—</div>
+      <div class="rango" id="estadoTexto">Esperando lecturas…</div>
+    </div>
+    <div class="tarjeta">
+      <div class="etiqueta">🌡 Temperatura</div>
+      <div class="valor"><span id="temp">—</span> <small>°C</small></div>
+      <div class="barra"><div class="zona" id="zonaT"></div><div class="marcador" id="marcaT"></div></div>
+      <div class="rango">Rango seguro 15 – 25 °C</div>
+    </div>
+    <div class="tarjeta">
+      <div class="etiqueta">💧 Humedad relativa</div>
+      <div class="valor"><span id="hum">—</span> <small>%</small></div>
+      <div class="barra"><div class="zona" id="zonaH"></div><div class="marcador" id="marcaH"></div></div>
+      <div class="rango">Rango seguro 50 – 65 % · más = riesgo de moho</div>
+    </div>
+    <div class="tarjeta">
+      <div class="etiqueta">💡 Actuador (LED de ventilación)</div>
+      <div class="led-fila">
+        <div class="foco" id="foco"></div>
+        <button class="interruptor" id="interruptor" aria-label="Prender o apagar el LED"></button>
+      </div>
+      <div class="rango" id="ledTexto">Estado: —</div>
+    </div>
+  </section>
+
+  <!-- Graficas -->
+  <section class="graficas">
+    <div class="tarjeta">
+      <h2>Temperatura (°C)</h2>
+      <div class="leyenda"><span style="background:#f0a24b"></span>Lectura<span style="background:rgba(239,75,90,.8)"></span>Límites 15 y 25 °C</div>
+      <canvas id="gTemp"></canvas>
+    </div>
+    <div class="tarjeta">
+      <h2>Humedad relativa (%)</h2>
+      <div class="leyenda"><span style="background:#4b8cf0"></span>Lectura<span style="background:rgba(239,75,90,.8)"></span>Límites 50 y 65 %</div>
+      <canvas id="gHum"></canvas>
+    </div>
+  </section>
+
+  <!-- Ultimas lecturas -->
+  <section class="tarjeta" style="margin-top:16px">
+    <h2>Últimas lecturas (DynamoDB)</h2>
+    <table>
+      <thead><tr><th>Hora</th><th>Temperatura</th><th>Humedad</th><th>Estado</th><th>LED</th></tr></thead>
+      <tbody id="tabla"></tbody>
+    </table>
+    <div class="error" id="error"></div>
+  </section>
+
+  <footer>ESP32 → MQTT → AWS IoT Core → IoT Rule → DynamoDB · Dashboard en Amazon S3 → API Gateway → Lambda</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ===== Configuracion: URL de la API (API Gateway) =====
+const API = "https://o4iookklbd.execute-api.us-east-1.amazonaws.com";
+const CADA_MS = 10000;   // refrescar cada 10 s (igual que el ESP32)
+
+const $ = (id) => document.getElementById(id);
+let ledActual = "OFF";
+
+// Hora local a partir del ts en milisegundos
+const hora = (ts) => new Date(ts).toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+
+// ----- Graficas (Chart.js) -----
+function crearGrafica(canvas, color, min, max, limites) {
+  const linea = (v) => ({ data: [], borderColor: "rgba(239,75,90,.8)", borderDash: [6, 4],
+                          borderWidth: 1.5, pointRadius: 0, fill: false, label: "límite " + v, valor: v });
+  return new Chart(canvas, {
+    type: "line",
+    data: { labels: [], datasets: [
+      { data: [], borderColor: color, backgroundColor: color + "22", fill: true, tension: 0.3,
+        pointRadius: 0, borderWidth: 2, label: "lectura" },
+      ...limites.map(linea)
+    ]},
+    options: {
+      animation: false, responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: "#8b93a7", maxTicksLimit: 6 }, grid: { color: "#20242e" } },
+        y: { suggestedMin: min, suggestedMax: max, ticks: { color: "#8b93a7" }, grid: { color: "#20242e" } }
+      }
+    }
+  });
+}
+const gTemp = crearGrafica($("gTemp"), "#f0a24b", 10, 35, [15, 25]);
+const gHum  = crearGrafica($("gHum"),  "#4b8cf0", 30, 90, [50, 65]);
+
+function pintarGrafica(g, lecturas, campo) {
+  g.data.labels = lecturas.map((l) => hora(l.ts));
+  g.data.datasets[0].data = lecturas.map((l) => l[campo]);
+  g.data.datasets.slice(1).forEach((d) => d.data = lecturas.map(() => d.valor));
+  g.update();
+}
+
+// Barra con zona segura y marcador del valor actual
+function pintarBarra(zona, marca, valor, min, max, segMin, segMax) {
+  const pct = (v) => Math.min(100, Math.max(0, (v - min) / (max - min) * 100));
+  zona.style.left = pct(segMin) + "%";
+  zona.style.width = (pct(segMax) - pct(segMin)) + "%";
+  marca.style.left = pct(valor) + "%";
+}
+
+function pintarLed(estado) {
+  ledActual = estado;
+  $("foco").classList.toggle("on", estado === "ON");
+  $("interruptor").classList.toggle("on", estado === "ON");
+  $("ledTexto").textContent = "Estado: " + (estado === "ON" ? "Encendido" : "Apagado");
+}
+
+// ----- Leer lecturas de la API y actualizar todo -----
+async function actualizar() {
+  try {
+    const r = await fetch(`${API}/lecturas?horas=${$("horas").value}`);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const lecturas = (await r.json()).sort((a, b) => a.ts - b.ts);
+    $("error").textContent = "";
+    if (!lecturas.length) { $("actualizado").textContent = "Sin lecturas en este rango"; return; }
+
+    const u = lecturas[lecturas.length - 1];   // ultima lectura
+    $("temp").textContent = u.temperatura.toFixed(1);
+    $("hum").textContent = u.humedad.toFixed(1);
+    $("estado").textContent = u.estado;
+    $("tEstado").classList.toggle("alerta", u.estado === "ALERTA");
+    $("estadoTexto").textContent = u.estado === "OK"
+      ? "Condiciones seguras para café pergamino"
+      : "Fuera del rango seguro: revisar ventilación";
+    pintarBarra($("zonaT"), $("marcaT"), u.temperatura, 0, 40, 15, 25);
+    pintarBarra($("zonaH"), $("marcaH"), u.humedad, 0, 100, 50, 65);
+    if (u.led) pintarLed(u.led);
+
+    pintarGrafica(gTemp, lecturas, "temperatura");
+    pintarGrafica(gHum, lecturas, "humedad");
+
+    $("tabla").innerHTML = lecturas.slice(-8).reverse().map((l) => `
+      <tr><td>${hora(l.ts)}</td><td>${l.temperatura.toFixed(1)} °C</td><td>${l.humedad.toFixed(1)} %</td>
+      <td><span class="pill ${l.estado}">${l.estado}</span></td><td>${l.led || "—"}</td></tr>`).join("");
+
+    const hace = Math.round((Date.now() - u.ts) / 1000);
+    $("actualizado").textContent = `En vivo · última lectura hace ${hace} s`;
+    $("punto").style.background = hace < 30 ? "var(--ok)" : "var(--alerta)";
+  } catch (e) {
+    $("error").textContent = "No se pudo leer la API: " + e.message;
+    $("punto").style.background = "var(--alerta)";
+  }
+}
+
+// ----- Actuador: enviar ON/OFF al ESP32 (API -> Lambda -> IoT Core -> MQTT) -----
+$("interruptor").addEventListener("click", async () => {
+  const nuevo = ledActual === "ON" ? "OFF" : "ON";
+  pintarLed(nuevo);                                   // respuesta inmediata en pantalla
+  try {
+    const r = await fetch(`${API}/led`, { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ estado: nuevo }) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+  } catch (e) {
+    pintarLed(nuevo === "ON" ? "OFF" : "ON");         // si falla, se revierte
+    $("error").textContent = "No se pudo enviar el comando: " + e.message;
+  }
+});
+
+// ----- Descargar CSV -----
+$("csv").addEventListener("click", () => {
+  window.location.href = `${API}/lecturas/csv?horas=${$("horas").value}`;
+});
+
+$("horas").addEventListener("change", actualizar);
+actualizar();
+setInterval(actualizar, CADA_MS);
+</script>
+</body>
+</html>
