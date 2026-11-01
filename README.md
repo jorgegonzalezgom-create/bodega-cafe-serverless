@@ -38,7 +38,7 @@ enciende y apaga desde el dashboard.
 flowchart LR
     ESP[ESP32 + DHT11] -- "MQTT TLS :8883<br/>bodega1/lecturas" --> IOT[AWS IoT Core]
     IOT -- "bodega1/led" --> ESP
-    IOT --> RULE[IoT Rule<br/>SELECT *, timestamp() AS ts] --> DDB[(DynamoDB<br/>bodega-lecturas)]
+    IOT --> RULE["IoT Rule<br/>SELECT *, timestamp() AS ts"] --> DDB[(DynamoDB<br/>bodega-lecturas)]
     USR[Usuario] --> S3[S3 · dashboard web] -- fetch --> API[API Gateway<br/>HTTP API]
     API --> LAMBDA[Lambda bodega-api]
     LAMBDA -- "Query (JSON / CSV)" --> DDB
